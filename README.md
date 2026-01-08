@@ -70,7 +70,9 @@ It specifies data format, timing, synchronization, and direction of data flow.
 **Applications:**
 - Sensors  
 - Displays  
-- Memory devices  
+- Memory devices
+
+<img width="440" height="215" alt="peri_api_spi_diagram" src="https://github.com/user-attachments/assets/b485bca1-d2db-4051-81f1-5b643b205660" />
 
 ---
 
@@ -84,7 +86,8 @@ It specifies data format, timing, synchronization, and direction of data flow.
 **Applications:**
 - EEPROM  
 - RTC modules  
-- Sensors  
+- Sensors
+https://docs.tizen.org/iot/guides/peripheral-io-api-i2c/
 
 ---
 
