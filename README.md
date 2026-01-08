@@ -121,7 +121,7 @@ It specifies data format, timing, synchronization, and direction of data flow.
 - Power and energy monitoring
 
 
-#UART : SERIAL COMMUNICATION WITH PIC MICROCONTROLLER
+# UART : SERIAL COMMUNICATION WITH PIC MICROCONTROLLER
 
 Circuit Diagram: Transmission Rreception
 <img width="1198" height="708" alt="image" src="https://github.com/user-attachments/assets/6d181c35-c669-425d-b0fd-88feb8d787fc" />
