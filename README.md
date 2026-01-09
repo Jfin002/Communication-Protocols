@@ -130,3 +130,9 @@ It specifies data format, timing, synchronization, and direction of data flow.
 
 ### Circuit Diagram: Transmission Reception
 <img width="1078" height="617" alt="image" src="https://github.com/user-attachments/assets/37b3fd6f-f057-487c-89a6-cef6a6ac00fd" />
+
+# I2C : SERIAL COMMUNICATION WITH PIC MICROCONTROLLER
+
+### Circuit Diagram: Transmission Reception
+<img width="1237" height="856" alt="image" src="https://github.com/user-attachments/assets/0c6ff60d-6206-4e30-a5c9-c64d2b27d15d" />
+
