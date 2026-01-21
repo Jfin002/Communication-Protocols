@@ -1,1 +1,95 @@
+Main.c:
 
+#include "STM32F4xx.h"
+#include "stdio.h"
+#include "stdint.h"
+#include "Soil_Mooisture.h"
+
+uint32_t sensor_value;
+
+int main(void)
+{
+    PA2_ADC_Init();
+
+    while (1)
+    {
+        start_conversion();
+        sensor_value = ADC_READ();
+    }
+}
+
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Header File:
+
+/*
+ * Soil_Mooisture.h
+ *
+ *  Created on: Jan 21, 2026
+ *      Author: jeffi
+ */
+
+#ifndef INC_SOIL_MOOISTURE_H_
+#define INC_SOIL_MOOISTURE_H_
+
+
+
+#endif /* INC_SOIL_MOOISTURE_H_ */
+
+#include "STDINT.h"
+void PA2_ADC_Init(void);
+void start_conversion(void);
+uint32_t ADC_READ(void);
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Source File:
+
+#include "STM32F4xx.h"
+#include "Soil_Mooisture.h"
+#define GPIOAEN (1U<<0)  //1U==1
+#define ADC1EN (1U<<8) //ADC 1 enable(pin 8)
+#define ADC_CH2 (2U<<0) //chhannel 2 = PA2
+#define ADC_SEQ_LEN_1 (0x00)
+#define CR2_ADON (1U<<0)
+#define CR2_SWSTART (1U<<30)
+#define SR_EOC (1U<<1) // SR-status register
+
+
+void PA2_ADC_Init(void)
+{
+	// data sheet pg.39 table 8 ADC1_1=PA1
+	RCC->AHB1ENR |= GPIOAEN; //enabling GPIOA clock
+
+	// goto reference manuel , 6.3.1 making it analog mode '11'
+	GPIOA->MODER |=(1U<<4); //setting to analog mode (moder=11)
+	GPIOA->MODER |=(1U<<5);
+
+	// refence manuel 6.3.12, enable for ADC1 clock
+	RCC->APB2ENR |= ADC1EN;
+
+	// reference manuel 11.12.1
+	ADC1->SQR3 = ADC_CH2; // because we choose channel 1(pa1)
+
+	// reference manuel 11.12.9
+	ADC1->SQR1 = ADC_SEQ_LEN_1; // total length of conversion
+
+	// enable control register (reference manuel 1.12.3)
+	ADC1->CR2 |= CR2_ADON;
+}
+
+void start_conversion(void)
+{
+	// control register to start enable conversion
+	ADC1->CR2 |=CR2_SWSTART;
+}
+
+uint32_t ADC_READ(void)
+{
+	while(!(ADC1->SR & SR_EOC))
+	{
+
+	}
+return(ADC1->DR);
+}
