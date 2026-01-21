@@ -44,3 +44,12 @@ Refer to the pinout diagram below:
 
 ## Author
 Jeffin Paul
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# PROJECTS
+
+## LED Blinking
+## LED with Switch
+## LDR
+## Soil Moisture Sensor
+## IR Sensor
