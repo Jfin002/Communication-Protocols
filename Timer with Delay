@@ -1,1 +1,89 @@
+Main.c:
+#include <stdio.h>
+#include <stdint.h>
+#include "stm32f4xx.h"
+#include "tim.h"
+
+
+#define GPIODEN      (1U<<3)
+#define LED_PIN           (1U<<13)
+
+
+int main(void)
+{
+
+	RCC ->AHB1ENR |= GPIODEN;
+	 //PORT D - LED
+		// ENABLE CLK TO GPIOA WITH (01) GP OUTPUT MODE
+		// ENABLING CORRESPONDING GPIO PIN WITH REFERENCE MANUAL 8.4.1 GPIO
+
+		// FOR DOING & OPERATIOIN, EXCEPT THE DESIRED BIT, OTHER BITS ARE INVERTED TO STATE 1
+		// THEN & OPERATED WITH REGISTER
+		GPIOD->MODER &= ~(1U<<27); //PD14 -> 29,28  (01)
+		// OR OPERATOR USED TO GET THE DESIRED BIT TO STATE 1
+		GPIOD->MODER |= 1U<<26;
+
+		 tim2_1hz_Init();
+
+	while(1)
+	{
+		while(!(TIM2->SR & SR_UIF))
+		{
+
+		}
+
+		//CLEAR UIF
+		TIM2->SR &= ~SR_UIF;
+
+		printf("A second passed: \n\t");
+		GPIOD->ODR ^= LED_PIN;
+
+	}
+
+
+
+
+}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Source file:
+
+#include "stm32f4xx.h"
+
+#define TIM2EN (1U<<0)
+#define CR1_CEN  (1U<<0)
+
+void tim2_1hz_Init(void){
+	//ENABLE CLOCK ACCESS TO TIMER2
+	RCC->APB1ENR |=TIM2EN;
+	//SET PRESCALAR VALUE
+	TIM2->PSC = 1600 -1; // SETTING TO 1599 => 16000000/1600 = 10000
+	//SET AUTO PRELOAD VALUE
+	TIM2->ARR = 10000 -1;// 10000/10000=1
+	//CLEAR CPOUNTER
+	TIM2->CNT =0;
+	//ENABLE TIMEER2
+	TIM2->CR1 = CR1_CEN;
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Header file:
+
+/*
+ * tim.h
+ *
+ *  Created on: Jan 22, 2026
+ *      Author: jeffin
+ */
+
+#ifndef INC_TIM_H_
+#define INC_TIM_H_
+
+void tim2_1hz_Init(void);
+
+#define SR_UIF  (1U<<0)
+
+#endif /* INC_TIM_H_ */
 
