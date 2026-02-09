@@ -57,6 +57,17 @@ Here we use HC-05, STM32F411VET6 and a mobile app 'serial monitor'.
 <img width="694" height="1536" alt="image" src="https://github.com/user-attachments/assets/24f418b1-cc2c-473e-843d-ce79be51ae78" />
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## Home Automation
+
+'1' - LED on
+'0' - LED off
+
+![WhatsApp Image 2026-02-09 at 3 06 14 PM](https://github.com/user-attachments/assets/f5495906-0cb2-491c-84c7-ace5ef989b2a)
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ## LED Blinking
 ## LED with Switch
 ## LDR
