@@ -64,7 +64,8 @@ Here we use HC-05, STM32F411VET6 and a mobile app 'serial monitor'.
 '0' - LED off
 
 ![WhatsApp Image 2026-02-09 at 3 06 14 PM](https://github.com/user-attachments/assets/f5495906-0cb2-491c-84c7-ace5ef989b2a)
-"C:\Users\jeffi\Desktop\WhatsApp Image 2026-02-09 at 2.58.32 PM.jpeg"
+![WhatsApp Image 2026-02-09 at 2 58 32 PM](https://github.com/user-attachments/assets/ce3833ba-ae07-4496-84fe-f1e4ae2d5874)
+
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
