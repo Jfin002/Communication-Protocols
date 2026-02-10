@@ -70,7 +70,7 @@ Components used are STM32f411vet6, HC-05
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-## Pressure and Temperature checking
+## Pressure and Temperature checking (SPI)
 Components used are STM32f411vet6, BMP280(pressure sensor)
 Connections: Connect BMP280 to STM32 and Vcc is 3.3V (using voltage divider)
 
@@ -78,6 +78,14 @@ Connections: Connect BMP280 to STM32 and Vcc is 3.3V (using voltage divider)
 <img width="1522" height="749" alt="image" src="https://github.com/user-attachments/assets/5e6b0856-10d8-48f9-938c-a43906d89389" />
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+## I2C
+
+<img width="452" height="755" alt="image" src="https://github.com/user-attachments/assets/e0edb617-fdcd-4bfd-9fb3-c55c278a0eb9" />
+<img width="1916" height="1079" alt="image" src="https://github.com/user-attachments/assets/daaf24c4-68d2-410b-9e4a-90c01aa4412d" />
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 ## LED Blinking
 ## LED with Switch
 ## LDR
