@@ -1,1 +1,374 @@
+Main.c
 
+#include <stdio.h>
+#include <stdint.h>
+#include "stm32f4xx.h"
+#include "BMP280.h"
+#include "BMP280.h"
+
+int32_t raw_temp, raw_press;
+
+int main(void)
+{
+    bmp280_init();
+
+    while(1)
+    {
+        bmp280_read_raw(&raw_temp, &raw_press);
+
+        // Optional: convert to °C / Pa
+        // Debugging raw readings
+    }
+}
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SPI.c
+
+/*
+ * SPI.c
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+#include "SPI.h"
+
+
+#define SPI1EN			(1U<<12)
+#define GPIOAEN			(1U<<0)
+
+#define SR_TXE			(1U<<1)
+#define SR_RXNE			(1U<<0)
+
+#define SR_BSY			(1U<<7)
+
+
+//PA5 -> CLK
+//PA6 -> MISO
+//PA7 -> MOSI
+
+//PA9 -> Slave Select
+
+
+void spi_gpio_init(void)
+{
+	/*Enable clock access to GPIOA :: 6.3.9 RCC AHB1ENR REFERENCE MANUAL*/
+	RCC->AHB1ENR |= GPIOAEN;
+
+	/*Set PA5,PA6,PA7 mode to alternate function
+	 * ALTERANTE FUNCTION MAPPING TABLE NO:9 DATASHEET*/
+
+	/*PA5*/
+	GPIOA->MODER &=~(1U<<10);
+	GPIOA->MODER |=(1U<<11);
+
+	/*PA6*/
+	GPIOA->MODER &=~(1U<<12);
+	GPIOA->MODER |=(1U<<13);
+
+	/*PA7*/
+	GPIOA->MODER &=~(1U<<14);
+	GPIOA->MODER |=(1U<<15);
+
+
+	/*Set PA9 as output pin*/
+	GPIOA->MODER |=(1U<<18);
+	GPIOA->MODER &=~(1U<<19);
+
+	/*Set PA5,PA6,PA7 alternate function type to SPI1
+	 * 8.4.9 GPIO ALTERNATE FUNCTION REFERENCE MANUAL*/
+	/*PA5*/
+	GPIOA->AFR[0] |=(1U<<20);
+	GPIOA->AFR[0] &= ~(1U<<21);
+	GPIOA->AFR[0] |=(1U<<22);
+	GPIOA->AFR[0] &= ~(1U<<23);
+
+	/*PA6*/
+	GPIOA->AFR[0] |=(1U<<24);
+	GPIOA->AFR[0] &= ~(1U<<25);
+	GPIOA->AFR[0] |=(1U<<26);
+	GPIOA->AFR[0] &= ~(1U<<27);
+
+	/*PA7*/
+	GPIOA->AFR[0] |=(1U<<28);
+	GPIOA->AFR[0] &= ~(1U<<29);
+	GPIOA->AFR[0] |=(1U<<30);
+	GPIOA->AFR[0] &= ~(1U<<31);
+
+
+}
+
+void spi1_config(void)
+{
+	/*Enable clock access to SPI1 module :: 6.3.12 RCC APB2ENR REFERENCE MANUAL*/
+	RCC->APB2ENR |= SPI1EN;
+
+	/*Set clock to fPCLK/4
+	 * DEFAULT FREQUENCY OF STM32F411 IS 16MHz
+	 * 20.5.1 SPI CONTROL REGISTER 1*/
+	SPI1->CR1 |=(1U<<3);
+	SPI1->CR1 &=~(1U<<4);
+	SPI1->CR1 &=~(1U<<5);
+
+	/*Set CPOL to 0 and CPHA to 0*/
+	SPI1->CR1 &= ~(1U<<0);
+	SPI1->CR1 &= ~(1U<<1);
+
+	/*Enable full duplex*/
+	SPI1->CR1 &=~(1U<<10);
+
+	/*Set MSB first*/
+	SPI1->CR1 &= ~(1U<<7);
+
+	/*Set mode to MASTER
+	 * MASTER --> STM32
+	 * SLAVE --> MPU6050*/
+	SPI1->CR1 |= (1U<<2);
+
+	/*Set 8 bit data mode*/
+	SPI1->CR1 &= ~(1U<<11);
+
+	/*Select software slave management by
+	 * setting SSM=1 and SSI=1*/
+	SPI1->CR1 |= (1<<8);
+	SPI1->CR1 |= (1<<9);
+
+	/*Enable SPI module*/
+	SPI1->CR1 |= (1<<6);
+
+}
+
+void spi1_transmit(uint8_t *data,uint32_t size)
+{
+	uint32_t i=0;
+	uint8_t temp;
+
+	while(i<size)
+	{
+		/*Wait until TXE is set
+		 * 20.5.3 SPI STATUS REGISTER*/
+		while(!(SPI1->SR & (SR_TXE)))
+		{
+
+		}
+
+		/*Write the data to the data register*/
+		SPI1->DR = data[i];
+		i++;
+	}
+	/*Wait until TXE is set*/
+	while(!(SPI1->SR & (SR_TXE)))
+	{
+
+	}
+
+	/*Wait for BUSY flag to reset
+	 * 20.5.3 SPI STATUS REGISTER*/
+	while((SPI1->SR & (SR_BSY))){}
+
+	/*Clear OVR flag
+	 * 20.4.8 ERROR FLAGS -> OVERRUN FLAG*/
+	temp = SPI1->DR;
+	temp = SPI1->SR;
+}
+
+void spi1_receive(uint8_t *data,uint32_t size)
+{
+	while(size)
+	{
+		/*Send dummy data*/
+		SPI1->DR =0;
+
+		/*Wait for RXNE flag to be set*/
+		while(!(SPI1->SR & (SR_RXNE))){}
+
+		/*Read data from data register*/
+		*data++ = (SPI1->DR);
+		size--;
+	}
+}
+
+
+void cs_enable(void)
+{
+	//8.4.6 GPIO OUTPUT DATA REGISTER
+	GPIOA->ODR &=~(1U<<9);
+
+}
+
+/*Pull high to disable*/
+void cs_disable(void)
+{
+	GPIOA->ODR |=(1U<<9);
+}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+BMP280.c
+
+/*
+ * BMP280.c
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+
+
+#include "BMP280.h"
+
+/* Calibration parameters */
+static uint16_t dig_T1;
+static int16_t  dig_T2, dig_T3;
+static uint16_t dig_P1;
+static int16_t  dig_P2, dig_P3, dig_P4, dig_P5, dig_P6, dig_P7, dig_P8, dig_P9;
+
+volatile uint8_t bmp280_id = 0;
+
+
+/* SPI write: register & data */
+static void bmp280_write(uint8_t reg, uint8_t data)
+{
+    uint8_t buf[2];
+    buf[0] = reg & 0x7F; // write mode
+    buf[1] = data;
+
+    cs_enable();
+    spi1_transmit(buf, 2);
+    cs_disable();
+}
+
+/* SPI read: multi-byte */
+static void bmp280_read(uint8_t reg, uint8_t *data, uint8_t len)
+{
+    reg |= 0x80; // read mode
+
+    cs_enable();
+    spi1_transmit(&reg, 1);
+    spi1_receive(data, len);
+    cs_disable();
+}
+
+/* Read calibration data */
+static void bmp280_read_calib(void)
+{
+    uint8_t calib[24];
+    bmp280_read(BMP280_CALIB_START, calib, 24);
+
+    dig_T1 = (calib[1]<<8) | calib[0];
+    dig_T2 = (calib[3]<<8) | calib[2];
+    dig_T3 = (calib[5]<<8) | calib[4];
+
+    dig_P1 = (calib[7]<<8) | calib[6];
+    dig_P2 = (calib[9]<<8) | calib[8];
+    dig_P3 = (calib[11]<<8) | calib[10];
+    dig_P4 = (calib[13]<<8) | calib[12];
+    dig_P5 = (calib[15]<<8) | calib[14];
+    dig_P6 = (calib[17]<<8) | calib[16];
+    dig_P7 = (calib[19]<<8) | calib[18];
+    dig_P8 = (calib[21]<<8) | calib[20];
+    dig_P9 = (calib[23]<<8) | calib[22];
+}
+
+
+/* Initialize BMP280 */
+void bmp280_init(void)
+{
+    spi_gpio_init();
+    spi1_config();
+
+    cs_disable();
+
+    // Soft reset
+    bmp280_write(BMP280_RESET_REG, 0xB6);
+
+    // small delay (VERY IMPORTANT)
+    for (volatile int i = 0; i < 100000; i++);
+
+    // Read chip ID
+    bmp280_read(BMP280_ID_REG, &bmp280_id, 1);
+
+    // Read calibration
+    bmp280_read_calib();
+
+    // ctrl_meas: temp x1, press x1, normal mode
+    bmp280_write(BMP280_CTRL_MEAS, 0x27);
+
+    // config: standby 1000ms
+    bmp280_write(BMP280_CONFIG, 0xA0);
+}
+
+
+/* Read raw temperature and pressure */
+void bmp280_read_raw(int32_t *temp, int32_t *press)
+{
+    uint8_t data[6];
+    bmp280_read(BMP280_PRESS_MSB, data, 6);
+
+    *press = (int32_t)((data[0]<<12) | (data[1]<<4) | (data[2]>>4));
+    *temp  = (int32_t)((data[3]<<12) | (data[4]<<4) | (data[5]>>4));
+}
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+SPI.h
+
+/*
+ * SPI.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+#ifndef INC_SPI_H_
+#define INC_SPI_H_
+
+#include "stm32f4xx.h"
+#include <stdint.h>
+
+void spi_gpio_init(void);
+void spi1_config(void);
+void spi1_transmit(uint8_t *data,uint32_t size);
+void spi1_receive(uint8_t *data,uint32_t size);
+void cs_enable(void);
+void cs_disable(void);
+
+
+#endif /* INC_SPI_H_ */
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+BMP280.h
+
+/*
+ * BMP280.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+
+#ifndef INC_BMP280_H_
+#define INC_BMP280_H_
+
+
+#include "SPI.h"
+#include <stdint.h>
+
+/* BMP280 Registers */
+#define BMP280_ID_REG       0xD0
+#define BMP280_RESET_REG    0xE0
+#define BMP280_STATUS       0xF3
+#define BMP280_CTRL_MEAS    0xF4
+#define BMP280_CONFIG       0xF5
+#define BMP280_PRESS_MSB    0xF7
+#define BMP280_TEMP_MSB     0xFA
+#define BMP280_CALIB_START  0x88
+
+/* Function prototypes */
+void bmp280_init(void);
+void bmp280_read_raw(int32_t *temp, int32_t *press);
+
+
+#endif /* INC_BMP280_H_ */
