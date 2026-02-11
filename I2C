@@ -1,1 +1,727 @@
+Main.c:
+#include <stdio.h>
+#include <stdint.h>
+#include "stm32f4xx.h"
+#include "uart.h"
+#include "mpu6050.h"
 
+int16_t ax, ay, az;
+double ax_g, ay_g, az_g;
+
+extern uint8_t mpu_data[6];
+
+/* Simple delay */
+void delay_ms(uint32_t ms)
+{
+    for(uint32_t i = 0; i < (ms * 4000); i++);
+}
+
+int main(void)
+{
+    /* Initialize UART for printf */
+    uart2_tx_init();
+
+    /* Initialize MPU6050 */
+    mpu6050_init();
+
+    printf("MPU6050 Started...\r\n");
+
+    while(1)
+    {
+        /* Read accelerometer data */
+        mpu6050_read_accel();
+
+        /* Combine high & low bytes */
+        ax = (int16_t)((mpu_data[0] << 8) | mpu_data[1]);
+        ay = (int16_t)((mpu_data[2] << 8) | mpu_data[3]);
+        az = (int16_t)((mpu_data[4] << 8) | mpu_data[5]);
+
+        /* Convert to g */
+        ax_g = ax / ACCEL_SENS_2G;
+        ay_g = ay / ACCEL_SENS_2G;
+        az_g = az / ACCEL_SENS_2G;
+
+        /* Print continuously */
+        printf("AX: %.2f g  AY: %.2f g  AZ: %.2f g\r\n",ax_g, ay_g, az_g);
+
+        /* Slow down output (10 Hz) */
+        delay_ms(100);
+    }
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+I2C.c
+/*
+ * I2C.c
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+
+#include "stm32f4xx.h"
+
+
+
+#define 	GPIOBEN			(1U<<1)
+#define 	I2C1EN			(1U<<21)
+
+#define 	I2C_100KHZ						80		//0B 0101 0000 = Decimal = 80
+#define 	SD_MODE_MAX_RISE_TIME			17
+#define		CR1_PE			(1U<<0)
+
+#define		SR2_BUSY		(1U<<1)
+#define     CR1_START		(1U<<8)
+#define		SR1_SB			(1U<<0)
+#define		SR1_ADDR		(1U<<1)
+#define		SR1_TXE			(1U<<7)
+#define		CR1_ACK			(1U<<10)
+#define     CR1_STOP		(1U<<9)
+#define		SR1_RXNE		(1U<<6)
+#define	    SR1_BTF			(1U<<2)
+
+/*
+ * PB8 ---- SCL
+ * PB9 ----- SDA
+ * */
+
+void I2C1_init(void)
+{
+	/*Enable clock access to GPIOB*/
+	 RCC->AHB1ENR |=GPIOBEN;
+
+	/*Set PB8 and PB9 mode to alternate function*/
+	GPIOB->MODER &=~(1U<<16);
+	GPIOB->MODER |=(1U<<17);
+
+	GPIOB->MODER &=~(1U<<18);
+	GPIOB->MODER |=(1U<<19);
+
+	/*Set PB8 and PB9 output type to  open drain*/
+	GPIOB->OTYPER |=(1U<<8);
+	GPIOB->OTYPER |=(1U<<9);
+
+	/*Enable Pull-up for PB8 and PB9*/
+	GPIOB->PUPDR |=(1U<<16);
+	GPIOB->PUPDR &=~(1U<<17);
+
+	GPIOB->PUPDR |=(1U<<18);
+	GPIOB->PUPDR &=~(1U<<19);
+
+	/*Set PB8 and PB9 alternate function type to I2C (AF4)*/
+	GPIOB->AFR[1] &=~(1U<<0);
+	GPIOB->AFR[1] &=~(1U<<1);
+	GPIOB->AFR[1] |=(1U<<2);
+	GPIOB->AFR[1] &=~(1U<<3);
+
+	GPIOB->AFR[1] &=~(1U<<4);
+	GPIOB->AFR[1] &=~(1U<<5);
+	GPIOB->AFR[1] |=(1U<<6);
+	GPIOB->AFR[1] &=~(1U<<7);
+
+
+	/*Enable clock access to I2C1*/
+	 RCC->APB1ENR |= I2C1EN;
+
+	/*Enter reset mode  */
+	I2C1->CR1 |= (1U<<15);
+
+	/*Come out of reset mode  */
+	I2C1->CR1 &=~(1U<<15);
+
+	/*Set Peripheral clock frequency*/
+	I2C1->CR2 = (1U<<4);   //16 Mhz
+
+	/*Set I2C to standard mode, 100kHz clock */
+	I2C1->CCR = I2C_100KHZ;
+
+	/*Set rise time */
+	I2C1->TRISE = SD_MODE_MAX_RISE_TIME;
+
+	/*Enable I2C1 module */
+	I2C1->CR1 |= CR1_PE;
+
+
+}
+
+void I2C1_byteRead(char saddr, char maddr, char* data) {
+
+      volatile int tmp;
+
+	  /* Wait until bus not busy */
+	  while (I2C1->SR2 & (SR2_BUSY)){}
+
+	  /* Generate start */
+	  I2C1->CR1 |= CR1_START;
+
+	  /* Wait until start flag is set */
+	  while (!(I2C1->SR1 & (SR1_SB))){}
+
+	  /* Transmit slave address + Write */
+	   I2C1->DR = saddr << 1;
+
+	  /* Wait until addr flag is set */
+	   while (!(I2C1->SR1 & (SR1_ADDR))){}
+
+	  /* Clear addr flag */
+	  tmp = I2C1->SR2;
+
+      /* Send memory address */
+      I2C1->DR = maddr;
+
+      /*Wait until transmitter empty */
+     while (!(I2C1->SR1 & SR1_TXE)){}
+
+     /*Generate restart */
+      I2C1->CR1 |= CR1_START;
+
+      /* Wait until start flag is set */
+     while (!(I2C1->SR1 & SR1_SB)){}
+
+     /* Transmit slave address + Read */
+     I2C1->DR = saddr << 1 | 1;
+
+     /* Wait until addr flag is set */
+    while (!(I2C1->SR1 & (SR1_ADDR))){}
+
+    /* Disable Acknowledge */
+    I2C1->CR1 &= ~CR1_ACK;
+
+    /* Clear addr flag */
+    tmp = I2C1->SR2;
+
+    /* Generate stop after data received */
+     I2C1->CR1 |= CR1_STOP;
+
+    /* Wait until RXNE flag is set */
+    while (!(I2C1->SR1 & SR1_RXNE)){}
+
+    /* Read data from DR */
+      *data++ = I2C1->DR;
+}
+
+void I2C1_burstRead(char saddr, char maddr, int n, char* data) {
+
+	volatile int tmp;
+
+	 /* Wait until bus not busy */
+	  while (I2C1->SR2 & (SR2_BUSY)){}
+
+      /* Generate start */
+    I2C1->CR1 |= CR1_START;
+
+    /* Wait until start flag is set */
+     while (!(I2C1->SR1 & SR1_SB)){}
+
+     /* Transmit slave address + Write */
+     I2C1->DR = saddr << 1;
+
+     /* Wait until addr flag is set */
+    while (!(I2C1->SR1 & SR1_ADDR)){}
+
+    /* Clear addr flag */
+     tmp = I2C1->SR2;
+
+     /* Wait until transmitter empty */
+    while (!(I2C1->SR1 & SR1_TXE)){}
+
+    /*Send memory address */
+    I2C1->DR = maddr;
+
+    /*Wait until transmitter empty */
+    while (!(I2C1->SR1 & SR1_TXE)){}
+
+    /*Generate restart */
+    I2C1->CR1 |= CR1_START;
+
+    /* Wait until start flag is set */
+    while (!(I2C1->SR1 & SR1_SB)){}
+
+    /* Transmit slave address + Read */
+    I2C1->DR = saddr << 1 | 1;
+
+    /* Wait until addr flag is set */
+    while (!(I2C1->SR1 & (SR1_ADDR))){}
+
+    /* Clear addr flag */
+    tmp = I2C1->SR2;
+
+    /* Enable Acknowledge */
+      I2C1->CR1 |=  CR1_ACK;
+
+    while(n > 0U)
+    {
+    	/*if one byte*/
+    	if(n == 1U)
+    	{
+    		/* Disable Acknowledge */
+    	    I2C1->CR1 &= ~CR1_ACK;
+
+    	    /* Generate Stop */
+    	    I2C1->CR1 |= CR1_STOP;
+
+ 			/* Wait for RXNE flag set */
+            while (!(I2C1->SR1 & SR1_RXNE)){}
+
+            /* Read data from DR */
+            *data++ = I2C1->DR;
+            break;
+    	}
+    	else
+    	{
+       	 /* Wait until RXNE flag is set */
+           while (!(I2C1->SR1 & SR1_RXNE)){}
+
+           /* Read data from DR */
+           (*data++) = I2C1->DR;
+
+           n--;
+    	}
+    }
+
+}
+
+
+void I2C1_burstWrite(char saddr, char maddr, int n, char* data) {
+
+	volatile int tmp;
+
+	 /* Wait until bus not busy */
+	 while (I2C1->SR2 & (SR2_BUSY)){}
+
+     /* Generate start */
+    I2C1->CR1 |= CR1_START;
+
+    /* Wait until start flag is set */
+    while (!(I2C1->SR1 & (SR1_SB))){}
+
+    /* Transmit slave address */
+    I2C1->DR = saddr << 1;
+
+    /* Wait until addr flag is set */
+    while (!(I2C1->SR1 & (SR1_ADDR))){}
+
+    /* Clear addr flag */
+    tmp = I2C1->SR2;
+
+    /* Wait until data register empty */
+    while (!(I2C1->SR1 & (SR1_TXE))){}
+
+    /* Send memory address */
+    I2C1->DR = maddr;
+
+    for (int i = 0; i < n; i++) {
+
+     /* Wait until data register empty */
+        while (!(I2C1->SR1 & (SR1_TXE))){}
+
+      /* Transmit memory address */
+      I2C1->DR = *data++;
+    }
+
+    /* Wait until transfer finished */
+    while (!(I2C1->SR1 & (SR1_BTF))){}
+
+    /* Generate stop */
+   I2C1->CR1 |= CR1_STOP;
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+MPU5060.c
+/*
+ * MPU6050.c
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+
+#include "MPU6050.h"
+
+
+uint8_t mpu_data[6];
+static uint8_t who_am_i;
+
+void mpu6050_read_reg(uint8_t reg, uint8_t *data)
+{
+    I2C1_byteRead(MPU6050_ADDR, reg, (char *)data);
+}
+
+void mpu6050_write_reg(uint8_t reg, uint8_t value)
+{
+    char data[1];
+    data[0] = value;
+    I2C1_burstWrite(MPU6050_ADDR, reg, 1, data);
+}
+
+void mpu6050_read_accel(void)
+{
+    I2C1_burstRead(MPU6050_ADDR, ACCEL_XOUT_H, 6, (char *)mpu_data);
+}
+
+void mpu6050_init(void)
+{
+    /* Initialize I2C */
+    I2C1_init();
+
+    /* Check WHO_AM_I (should be 0x68) */
+    mpu6050_read_reg(WHO_AM_I_REG, &who_am_i);
+
+    /* Wake up MPU6050 (clear sleep bit) */
+    mpu6050_write_reg(PWR_MGMT_1_REG, 0x00);
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+UART.c
+/*
+ * UART.c
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+
+#include "uart.h"
+
+
+
+#define GPIOAEN			(1U<<0)
+#define UART2EN			(1U<<17)
+
+#define CR1_TE			(1U<<3)
+#define CR1_RE			(1U<<2)
+
+#define CR1_UE			(1U<<13)
+#define SR_TXE			(1U<<7)
+#define CR1_RXNEIE		(1U<<5)
+
+
+#define	DMA1EN						(1U<<21)
+#define CHSEL4						(1U<<27)
+#define DMA_MEM_INC					(1U<<10)
+#define DMA_DIR_MEM_TO_PERIPH		(1U<<6)
+#define DMA_CR_TCIE				    (1U<<4)
+#define DMA_CR_EN				     (1U<<0)
+#define UART_CR3_DMAT				 (1U<<7)
+
+#define SYS_FREQ		16000000
+#define APB1_CLK		SYS_FREQ
+
+#define UART_BAUDRATE		115200
+
+static void uart_set_baudrate(USART_TypeDef *USARTx, uint32_t PeriphClk,  uint32_t BaudRate);
+static uint16_t compute_uart_bd(uint32_t PeriphClk, uint32_t BaudRate);
+
+void uart2_write(int ch);
+
+
+int __io_putchar(int ch)
+{
+	uart2_write(ch);
+	return ch;
+}
+
+
+
+void dma1_stream6_init(uint32_t src, uint32_t dst, uint32_t len)
+{
+	/*Enable clock access to DMA*/
+	RCC->AHB1ENR |=DMA1EN;
+
+	/*Disable DMA1 Stream6*/
+	DMA1_Stream6->CR &=~DMA_CR_EN;
+
+    /*Wait until DMA1 Stream 6 is disabled */
+    while(DMA1_Stream6->CR & DMA_CR_EN){}
+
+	/*Clear all interrupt flags of Stream6*/
+
+	DMA1->HIFCR |=(1U<<16);
+	DMA1->HIFCR |=(1U<<18);
+	DMA1->HIFCR |=(1U<<19);
+	DMA1->HIFCR |=(1U<<20);
+	DMA1->HIFCR |=(1U<<21);
+
+
+	/*Set the destination buffer*/
+	DMA1_Stream6->PAR = dst;
+
+	/*Set the source buffer*/
+	DMA1_Stream6->M0AR = src;
+
+	/*Set length*/
+	DMA1_Stream6->NDTR = len;
+
+	/*Select Stream6 CH4*/
+	DMA1_Stream6->CR = CHSEL4;
+
+	/*Enable memory increment*/
+	DMA1_Stream6->CR |= DMA_MEM_INC;
+
+	/*Configure transfer direction*/
+	DMA1_Stream6->CR |= DMA_DIR_MEM_TO_PERIPH;
+
+	/*Enable DMA transfer complete interrupt*/
+	DMA1_Stream6->CR |=DMA_CR_TCIE;
+
+	/*Enable direct mode and disable FIFO*/
+	DMA1_Stream6->FCR = 0;
+
+	/*Enable DMA1 Stream6*/
+	DMA1_Stream6->CR |=DMA_CR_EN;
+
+	/*Enable UART2 transmitter DMA*/
+	USART2->CR3 |=UART_CR3_DMAT;
+
+	/*DMA Interrupt enable in NVIC*/
+	NVIC_EnableIRQ(DMA1_Stream6_IRQn);
+
+
+}
+
+
+void uart2_rxtx_init(void)
+{
+	/****************Configure uart gpio pin***************/
+	/*Enable clock access to gpioa */
+	RCC->AHB1ENR |= GPIOAEN;
+
+	/*Set PA2 mode to alternate function mode*/
+	GPIOA->MODER &=~(1U<<4);
+	GPIOA->MODER |= (1U<<5);
+
+	/*Set PA2 alternate function type to UART_TX (AF07)*/
+	GPIOA->AFR[0] |= (1U<<8);
+	GPIOA->AFR[0] |= (1U<<9);
+	GPIOA->AFR[0] |= (1U<<10);
+	GPIOA->AFR[0] &= ~(1U<<11);
+
+
+	/*Set PA3 mode to alternate function mode*/
+	GPIOA->MODER &=~(1U<<6);
+	GPIOA->MODER |= (1U<<7);
+
+	/*Set PA3 alternate function type to UART_RX (AF07)*/
+	GPIOA->AFR[0] |= (1U<<12);
+	GPIOA->AFR[0] |= (1U<<13);
+	GPIOA->AFR[0] |= (1U<<14);
+	GPIOA->AFR[0] &= ~(1U<<15);
+
+
+
+
+	/****************Configure uart module ***************/
+	/*Enable clock access to uart2 */
+	RCC->APB1ENR |= UART2EN;
+
+	/*Configure baudrate*/
+	uart_set_baudrate(USART2,APB1_CLK,UART_BAUDRATE);
+
+	/*Configure the transfer direction*/
+	 USART2->CR1 =  (CR1_TE | CR1_RE);
+
+	/*Enable uart module*/
+	 USART2->CR1 |= CR1_UE;
+
+
+}
+
+void uart2_rx_interrupt_init(void)
+{
+	/****************Configure uart gpio pin***************/
+	/*Enable clock access to gpioa */
+	RCC->AHB1ENR |= GPIOAEN;
+
+	/*Set PA2 mode to alternate function mode*/
+	GPIOA->MODER &=~(1U<<4);
+	GPIOA->MODER |= (1U<<5);
+
+	/*Set PA2 alternate function type to UART_TX (AF07)*/
+	GPIOA->AFR[0] |= (1U<<8);
+	GPIOA->AFR[0] |= (1U<<9);
+	GPIOA->AFR[0] |= (1U<<10);
+	GPIOA->AFR[0] &= ~(1U<<11);
+
+
+	/*Set PA3 mode to alternate function mode*/
+	GPIOA->MODER &=~(1U<<6);
+	GPIOA->MODER |= (1U<<7);
+
+	/*Set PA3 alternate function type to UART_RX (AF07)*/
+	GPIOA->AFR[0] |= (1U<<12);
+	GPIOA->AFR[0] |= (1U<<13);
+	GPIOA->AFR[0] |= (1U<<14);
+	GPIOA->AFR[0] &= ~(1U<<15);
+
+
+
+
+	/****************Configure uart module ***************/
+	/*Enable clock access to uart2 */
+	RCC->APB1ENR |= UART2EN;
+
+	/*Configure baudrate*/
+	uart_set_baudrate(USART2,APB1_CLK,UART_BAUDRATE);
+
+	/*Configure the transfer direction*/
+	 USART2->CR1 =  (CR1_TE | CR1_RE);
+
+	 /*Enable RXNE inteerupt*/
+	 USART2->CR1 |=CR1_RXNEIE;
+
+	 /*Enable UART2 interrupt in NVIC*/
+	 NVIC_EnableIRQ(USART2_IRQn);
+
+	/*Enable uart module*/
+	 USART2->CR1 |= CR1_UE;
+
+
+}
+
+void uart2_tx_init(void)
+{
+	/****************Configure uart gpio pin***************/
+	/*Enable clock access to gpioa */
+	RCC->AHB1ENR |= GPIOAEN;
+
+	/*Set PA2 mode to alternate function mode*/
+	GPIOA->MODER &=~(1U<<4);
+	GPIOA->MODER |= (1U<<5);
+
+	/*Set PA2 alternate function type to UART_TX (AF07)*/
+	GPIOA->AFR[0] |= (1U<<8);
+	GPIOA->AFR[0] |= (1U<<9);
+	GPIOA->AFR[0] |= (1U<<10);
+	GPIOA->AFR[0] &= ~(1U<<11);
+
+
+	/****************Configure uart module ***************/
+	/*Enable clock access to uart2 */
+	RCC->APB1ENR |= UART2EN;
+
+	/*Configure baudrate*/
+	uart_set_baudrate(USART2,APB1_CLK,UART_BAUDRATE);
+
+	/*Configure the transfer direction*/
+	 USART2->CR1 =  CR1_TE;
+
+	/*Enable uart module*/
+	 USART2->CR1 |= CR1_UE;
+
+
+}
+
+
+char uart2_read(void)
+{
+	  /*Make sure the receive data register is not empty*/
+	while(!(USART2->SR & SR_RXNE)){}
+
+	/*Read data*/
+	return USART2->DR;
+
+}
+
+void uart2_write(int ch)
+{
+  /*Make sure the transmit data register is empty*/
+	while(!(USART2->SR & SR_TXE)){}
+
+  /*Write to transmit data register*/
+	USART2->DR	=  (ch & 0xFF);
+}
+
+
+
+
+static void uart_set_baudrate(USART_TypeDef *USARTx, uint32_t PeriphClk,  uint32_t BaudRate)
+{
+	USARTx->BRR =  compute_uart_bd(PeriphClk,BaudRate);
+}
+
+static uint16_t compute_uart_bd(uint32_t PeriphClk, uint32_t BaudRate)
+{
+	return ((PeriphClk + (BaudRate/2U))/BaudRate);
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+I2C.h
+/*
+ * I2C.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+#ifndef INC_I2C_H_
+#define INC_I2C_H_
+
+void I2C1_init(void);
+void I2C1_byteRead(char saddr, char maddr, char* data);
+void I2C1_burstRead(char saddr, char maddr, int n, char* data);
+void I2C1_burstWrite(char saddr, char maddr, int n, char* data);
+
+#endif /* INC_I2C_H_ */
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+MPU5060.h
+
+/*
+ * MPU6050.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+#ifndef MPU6050_H_
+#define MPU6050_H_
+
+#include "i2c.h"
+#include <stdint.h>
+
+// MPU6050 I2C address :: 9.2 I2C INTERFACE
+#define MPU6050_ADDR        0x68
+
+/* MPU6050 Registers */
+#define WHO_AM_I_REG        0x75
+#define PWR_MGMT_1_REG      0x6B
+#define ACCEL_XOUT_H        0x3B
+
+/* Sensitivity scale factor (±2g) */
+#define ACCEL_SENS_2G       16384.0
+
+void mpu6050_init(void);
+void mpu6050_read_accel(void);
+
+extern uint8_t mpu_data[6];
+
+#endif /* MPU6050_H_ */
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+UART.h
+/*
+ * UART.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+#ifndef INC_UART_H_
+#define INC_UART_H_
+
+#include <stdint.h>
+#include "stm32f4xx.h"
+
+void uart2_tx_init(void);
+char uart2_read(void);
+void uart2_rxtx_init(void);
+void uart2_rx_interrupt_init(void);
+
+void dma1_stream6_init(uint32_t src, uint32_t dst, uint32_t len);
+
+#define SR_RXNE			(1U<<5)
+#define HISR_TCIF6		(1U<<21)
+#define HIFCR_CTCIF6    (1U<<21)
+
+#endif /* INC_UART_H_ */
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
