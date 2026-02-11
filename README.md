@@ -97,3 +97,10 @@ Connections: Connect BMP280 to STM32 and Vcc is 3.3V (using voltage divider)
 ## Timer
 ## Timer with delay
 ## Timer with interrupt
+## UART with Interrupt, UART with Bluetooth, UART_TX
+## USART 1 , USART 6
+## Turning on LED using Bluetooth communication
+## SPI
+## I2C
+## Home Automation
+## Checking pressure and temperature using BMP280
