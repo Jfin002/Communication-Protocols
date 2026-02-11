@@ -1,0 +1,178 @@
+Main.c
+#include <stdio.h>
+#include <stdint.h>
+#include "stm32f4xx.h"
+#include "UART.h"
+
+
+#define GPIODEN      (1U<<3)
+#define LED_PIN      (1U<<13)
+
+volatile char key = 0;   // 👈 REQUIRED for ISR + Live Expressions
+
+static void uart_callback(void);
+
+int main(void)
+{
+    /* Enable GPIOD clock */
+    RCC->AHB1ENR |= GPIODEN;
+
+    //SET PD13 AS OUTPUT PIN -> 27,26  (01)
+    GPIOD->MODER &= ~(1U<<27);
+    GPIOD->MODER |= 1U<<26;
+
+    uart2_rx_interrupt_init();
+
+    while (1)
+    {
+        __NOP();   // keeps debugger happy
+    }
+}
+
+static void uart_callback(void)
+{
+    key = USART2->DR;   // reading DR clears RXNE
+
+    if (key == '1')
+    {
+        GPIOD->ODR |= LED_PIN;
+    }
+    else if (key == '0')
+    {
+        GPIOD->ODR &= ~LED_PIN;
+    }
+}
+
+void USART2_IRQHandler(void)
+{
+    if (USART2->SR & SR_RXNE)
+    {
+        uart_callback();
+    }
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+UART.c
+#include "UART.h"
+
+
+#define GPIOAEN     (1<<0)
+#define UART2EN     (1<<17)
+
+#define CR1_TE       (1<<3)
+#define CR1_RE       (1<<2)
+#define CR1_UE			(1U<<13)
+#define CR1_RXNEIE		(1U<<5)
+
+#define SR_TXE			(1U<<7)
+
+#define SYS_FREQ     16000000
+#define APB1_CLK     SYS_FREQ
+#define UART_BAUDRATE   9600
+
+
+static void uart_set_baudrate(USART_TypeDef *USARTx,uint32_t PeriphClk, uint32_t BaudRate );
+static uint16_t compute_uart_bd(uint32_t PeriphClk, uint32_t BaudRate);
+
+char uart2_write(int ch);
+
+int __io_putchar(int ch)
+{
+	uart2_write(ch);
+	  return ch;
+}
+
+
+/* CONFIGURE UART GPIO PIN
+ * FROM ALTERNATE FN. TABLE 9 USART2_TX ->PA2 -> AF07
+	 */
+
+
+void uart2_rx_interrupt_init(void)
+{
+	/******CONFIGURE UART GPIO PIN***********/
+
+   //ENABLE DATA BUS WITH REFERNCE MANUAL 6.3.11
+	RCC->AHB1ENR |= GPIOAEN;
+
+	//SET PA2,PA3 MODE TO ALTERNATE FUNCTION MODE WITH REFERNCE MANUAL 8.4.1
+	GPIOA->MODER &=~(1U<<4);
+	GPIOA->MODER |= (1U<<5);
+	GPIOA->MODER &=~(1U<<6);
+	GPIOA->MODER |= (1U<<7);
+
+	/*Set PA2,PA3 alternate function type to UART_TX (AF07)*/
+	 /* Clear AF */
+   GPIOA->AFR[0] &= ~(0xFFU << 8);
+
+	/* AF7 for USART2 */
+	GPIOA->AFR[0] |=  (0x77U << 8);
+
+
+	 /******CONFIGURE UART MODULE***********/
+
+		//ENBALE CLOCK ACCESS TO UART2
+		RCC ->APB1ENR |= UART2EN;
+		// DISABLE UART MODULE WITH CONTROL REGISTER 1
+		USART2 ->CR1 &= ~(CR1_UE);
+		//CONFIGURE BAUDRATE
+		uart_set_baudrate(USART2,APB1_CLK, UART_BAUDRATE );
+		//CONFIGURE TRANSFER DIRECTION WITH REFERNCE MANUAL 19.6.4 USART_CR1
+		USART2 ->CR1 = (CR1_TE | CR1_RE);
+	 /*Enable RXNE inteerupt*/
+	 USART2->CR1 |=CR1_RXNEIE;
+
+	 /*Enable UART2 interrupt in NVIC*/
+	 NVIC_EnableIRQ(USART2_IRQn);
+
+	/*Enable uart module*/
+	 USART2->CR1 |= CR1_UE;
+
+
+}
+
+
+char uart2_write(int ch)
+{
+	//MAKE SURE THE TRANSMIT DATA TRANSFER IS EMPTY
+	while(!(USART2 ->SR & SR_TXE))
+	{
+
+	}
+	//WRITE TO TRANSMIT DATA REGISTER WITH REFERENCE MANUAL 19.6.1
+	USART2 ->DR =(ch &0xFF);
+}
+
+
+
+static void uart_set_baudrate(USART_TypeDef *USARTx,uint32_t PeriphClk, uint32_t BaudRate )
+{
+	USARTx ->BRR =compute_uart_bd(PeriphClk,BaudRate);
+}
+
+static uint16_t compute_uart_bd(uint32_t PeriphClk, uint32_t BaudRate)
+{
+	return (PeriphClk + (BaudRate/2U)) /BaudRate;
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+UART.h
+/*
+ * UART.h
+ *
+ *  Created on: Feb 10, 2026
+ *      Author: jeffin
+ */
+
+#ifndef INC_UART_H_
+#define INC_UART_H_
+
+#include <stdint.h>
+#include "stm32f4xx.h"
+
+char uart2_write(int ch);
+void uart2_rx_interrupt_init(void);
+
+#define SR_RXNE			(1U<<5)
+
+#endif /* INC_UART_H_ */
