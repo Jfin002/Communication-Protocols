@@ -55,11 +55,13 @@ This project demonstrates wireless LED control using **STM32F411VET6** and the *
 
 By sending simple text commands (`on` / `off`) from a mobile phone using a Bluetooth serial app, an LED connected to the STM32 can be turned ON or OFF.
 
+
 ### 📸 Project Images
 
 [<img width="692" height="1536" alt="image" src="https://github.com/user-attachments/assets/1deafa98-5ce0-4481-97fb-904bd466de73" />](https://chatgpt.com/backend-api/estuary/content?id=file_0000000038c072068e85d8cdb9522105&ts=491722&p=fs&cid=1&sig=a2c2f0cda3b284b978ad29dd3b1f4c431bf2d57bf6889643354fc5f1a486a1f0&v=0)
 
 <img width="694" height="1536" alt="image" src="https://github.com/user-attachments/assets/24f418b1-cc2c-473e-843d-ce79be51ae78" />
+
 
 ### 🧩 Components Used
 
@@ -69,12 +71,14 @@ By sending simple text commands (`on` / `off`) from a mobile phone using a Bluet
 - Resistor (220Ω / 330Ω)
 - Jumper Wires
 - Android Mobile Phone
+  
 
 ### 📱 Mobile Application Used
 
 - **Serial Bluetooth Terminal** (Android App)
 
 This app is used to send UART commands to the STM32 via Bluetooth.
+
 
 ### 🔌 Pin Connections
 
@@ -89,6 +93,7 @@ This app is used to send UART commands to the STM32 via Bluetooth.
 
 > ⚠️ Use a voltage divider for HC-05 RX if powered with 5V.
 
+
 #### LED Connection
 
 | LED Pin | STM32 Pin |
@@ -97,6 +102,7 @@ This app is used to send UART commands to the STM32 via Bluetooth.
 | Cathode | GND       |
 
 (With current-limiting resistor)
+
 
 ### ⚙️ Working Principle
 
@@ -109,6 +115,7 @@ This app is used to send UART commands to the STM32 via Bluetooth.
    - `off` → LED turns OFF
 6. The LED state changes accordingly.
 
+
 ### 💻 Software Used
 
 - STM32CubeIDE
@@ -117,12 +124,14 @@ This app is used to send UART commands to the STM32 via Bluetooth.
 - UART Communication Protocol
 - Serial Bluetooth Terminal App
 
+
 ### 📟 Commands
 
 | Command | Action     |
 |---------|------------|
 | on      | LED ON     |
 | off     | LED OFF    |
+
 
 ### ▶️ How to Run
 
@@ -148,6 +157,7 @@ An LED is controlled wirelessly using a mobile phone via Bluetooth communication
 ![WhatsApp Image 2026-02-09 at 3 06 14 PM](https://github.com/user-attachments/assets/f5495906-0cb2-491c-84c7-ace5ef989b2a)
 ![WhatsApp Image 2026-02-09 at 2 58 32 PM](https://github.com/user-attachments/assets/ce3833ba-ae07-4496-84fe-f1e4ae2d5874)
 
+
 ### 🧩 Components Used
 
 - STM32F411VET6 Development Board
@@ -157,13 +167,16 @@ An LED is controlled wirelessly using a mobile phone via Bluetooth communication
 - Jumper Wires
 - Android Mobile Phone
 
+
 ### 📱 Mobile Application Used
 
 - **Serial Bluetooth Terminal (Android App)**
 
 Used to send control commands to the STM32.
 
+
 ### 🔌 Pin Connections
+
 
 ### HC-05 Bluetooth Module
 
@@ -176,6 +189,7 @@ Used to send control commands to the STM32.
 
 > ⚠️ Use a voltage divider for HC-05 RX when using 5V supply.
 
+
 ### LED Connection
 
 | LED Pin | STM32 Pin |
@@ -184,6 +198,7 @@ Used to send control commands to the STM32.
 | Cathode | GND       |
 
 (Use a current-limiting resistor.)
+
 
 ### ⚙️ Working Principle
 
@@ -196,12 +211,14 @@ Used to send control commands to the STM32.
    - `'0'` → LED turns OFF
 6. The LED responds instantly.
 
+
 ### 📟 Commands
 
 | Command | Action   |
 |---------|----------|
 | 1       | LED ON   |
 | 0       | LED OFF  |
+
 
 ### 💻 Software Used
 
@@ -210,6 +227,7 @@ Used to send control commands to the STM32.
 - Embedded C
 - UART Communication Protocol
 - Serial Bluetooth Terminal App
+
 
 ### ▶️ How to Run
 
@@ -230,11 +248,13 @@ using the **STM32F411VET6** microcontroller and the **BMP280 sensor** via **SPI 
 
 The sensor data is read and displayed through a serial terminal for monitoring and analysis.
 
+
 ### 📸 Project Images
 
 <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/c3002d11-25cd-4d49-8c42-fffe193b091b" />
 
 <img width="1522" height="749" alt="image" src="https://github.com/user-attachments/assets/5e6b0856-10d8-48f9-938c-a43906d89389" />
+
 
 ### 🧩 Components Used
 
@@ -245,7 +265,9 @@ The sensor data is read and displayed through a serial terminal for monitoring a
 - USB Power Supply
 - Voltage Divider (if required)
 
+
 ### 🔌 Pin Connections (SPI Mode)
+
 
 ### BMP280 to STM32 (SPI)
 
@@ -260,6 +282,7 @@ The sensor data is read and displayed through a serial terminal for monitoring a
 
 > ⚠️ BMP280 works at **3.3V logic level**.  
 > Use a voltage divider or level shifter if powering from 5V.
+
 
 ### ⚙️ Working Principle
 
@@ -281,10 +304,12 @@ using the **STM32F411VET6** microcontroller and external I2C devices.
 It focuses on configuring the STM32 as an **I2C Master** and communicating
 with peripheral modules such as sensors and displays.
 
+
 ### 📸 Project Images
 
 <img width="452" height="755" alt="image" src="https://github.com/user-attachments/assets/e0edb617-fdcd-4bfd-9fb3-c55c278a0eb9" />
 <img width="1916" height="1079" alt="image" src="https://github.com/user-attachments/assets/daaf24c4-68d2-410b-9e4a-90c01aa4412d" />
+
 
 ### 🧩 Components Used
 
@@ -293,6 +318,7 @@ with peripheral modules such as sensors and displays.
 - Jumper Wires
 - Breadboard (Optional)
 - USB Power Supply
+
   
 ### 🔌 Pin Connections (I2C)
 
@@ -306,6 +332,7 @@ with peripheral modules such as sensors and displays.
 | GND       | GND      | Module GND   |
 
 > ⚠️ Use pull-up resistors on SDA and SCL if the module does not have them onboard.
+
 
 ### ⚙️ Working Principle
 
@@ -343,6 +370,7 @@ with buzzer alert.
 - Breadboard (Optional)
 - 3.3V Power Supply
 
+
 ### ⚙️ Working Principle
 
 1. Laser continuously shines on the LDR sensor.
@@ -351,6 +379,7 @@ with buzzer alert.
 4. Counter is incremented.
 5. Buzzer gives a beep.
 6. OLED updates the count.
+
 
 ### 🔌 Pin Connections
 
@@ -363,6 +392,7 @@ with buzzer alert.
 | SCL  | PB8    |
 | SDA  | PB9    |
 
+
 ### Laser
 
 | Laser | STM32 |
@@ -371,6 +401,7 @@ with buzzer alert.
 | VCC   | 3.3V   |
 | GND   | GND    |
 
+
 ### Buzzer
 
 | Buzzer | STM32 |
@@ -378,6 +409,7 @@ with buzzer alert.
 | IN     | PB1    |
 | VCC    | 3.3V   |
 | GND    | GND    |
+
 
 ### LDR
 
