@@ -243,3 +243,420 @@ static void MX_GPIO_Init(void) {
 }
 
 void Error_Handler(void) { while(1); }
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Bare Metal Coding:
+
+I2C.h
+
+/*
+ * i2c.h
+ *
+ *  Created on: Feb 18, 2026
+ *      Author: jeffin
+ */
+
+#ifndef __I2C_H
+#define __I2C_H
+#include "stm32f411xe.h"
+#include <stdint.h>
+
+void I2C1_Init(void);
+void I2C_Write(uint8_t addr, uint8_t control, uint8_t data);
+
+#endif
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+I2C.c
+#include "i2c.h"
+
+void I2C1_Init(void)
+{
+    RCC->APB1ENR |= RCC_APB1ENR_I2C1EN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
+
+    GPIOB->MODER &= ~((3U<<(8*2)) | (3U<<(9*2)));
+    GPIOB->MODER |=  ((2U<<(8*2)) | (2U<<(9*2)));
+    GPIOB->AFR[1] |= (4U<<0) | (4U<<4);
+    GPIOB->OTYPER |= (1U<<8) | (1U<<9);
+    GPIOB->PUPDR  |= (1U<<(8*2)) | (1U<<(9*2));
+
+    I2C1->CR2   = 16;
+    I2C1->CCR   = 80;
+    I2C1->TRISE = 17;
+    I2C1->CR1 |= I2C_CR1_PE;
+}
+
+void I2C_Write(uint8_t addr, uint8_t control, uint8_t data)
+{
+    while(I2C1->SR2 & I2C_SR2_BUSY);
+    I2C1->CR1 |= I2C_CR1_START;
+    while(!(I2C1->SR1 & I2C_SR1_SB));
+    I2C1->DR = addr << 1;
+    while(!(I2C1->SR1 & I2C_SR1_ADDR));
+    (void)I2C1->SR2;
+    I2C1->DR = control;
+    while(!(I2C1->SR1 & I2C_SR1_TXE));
+    I2C1->DR = data;
+    while(!(I2C1->SR1 & I2C_SR1_BTF));
+    I2C1->CR1 |= I2C_CR1_STOP;
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+OLED.h
+#ifndef __OLED_H
+#define __OLED_H
+#include "i2c.h"
+#include <stdint.h>
+
+#define OLED_ADDR 0x3C
+
+void OLED_Init(void);
+void OLED_Command(uint8_t cmd);
+void OLED_Data(uint8_t data);
+void OLED_SetCursor(uint8_t page, uint8_t column);
+void OLED_Clear(void);
+void OLED_DrawChar(char c);
+void OLED_Print(char *str);
+void OLED_ShowStartupScreen(void);
+void OLED_ShowCount(int count);
+
+#endif
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+OLED.c
+#include "oled.h"
+
+void OLED_Command(uint8_t cmd)
+{
+    I2C_Write(OLED_ADDR, 0x00, cmd);
+}
+
+void OLED_Data(uint8_t data)
+{
+    I2C_Write(OLED_ADDR, 0x40, data);
+}
+
+void OLED_SetCursor(uint8_t page, uint8_t column)
+{
+    OLED_Command(0xB0 + page);           // Page
+    OLED_Command(0x00 + (column & 0x0F)); // Lower column
+    OLED_Command(0x10 + (column >> 4));   // Upper column
+}
+
+void OLED_Clear(void)
+{
+    for(uint8_t page = 0; page < 8; page++)
+    {
+        OLED_SetCursor(page, 0);
+        for(uint8_t col = 0; col < 128; col++)
+        {
+            OLED_Data(0x00);
+        }
+    }
+}
+
+void OLED_Init(void)
+{
+    /* Power-up delay */
+    for(volatile uint32_t i = 0; i < 80000; i++);
+
+    OLED_Command(0xAE);  // Display OFF
+    OLED_Command(0x20);  // Set Memory Addressing Mode (Horizontal)
+    OLED_Command(0x00);
+    OLED_Command(0xB0);  // Set Page Start Address (Page 0)
+    OLED_Command(0xC8);  // Set COM Output Scan Direction
+    OLED_Command(0x00);  // Set Low Column Start Address
+    OLED_Command(0x10);  // Set High Column Start Address
+    OLED_Command(0x40);  // Set Start Line
+    OLED_Command(0x81);  // Set Contrast Control
+    OLED_Command(0xFF);  // Maximum brightness
+    OLED_Command(0xA1);  // Set Segment Re-map
+    OLED_Command(0xA6);  // Set Normal Display (not inverted)
+    OLED_Command(0xA8);  // Set Multiplex Ratio
+    OLED_Command(0x3F);  // 64 MUX
+    OLED_Command(0xD3);  // Set Display Offset
+    OLED_Command(0x00);
+    OLED_Command(0xD5);  // Set Display Clock Divide Ratio/Oscillator Frequency
+    OLED_Command(0xF0);
+    OLED_Command(0xD9);  // Set Pre-charge Period
+    OLED_Command(0x22);
+    OLED_Command(0xDA);  // Set COM Pins Hardware Configuration
+    OLED_Command(0x12);
+    OLED_Command(0xDB);  // Set VCOMH Deselect Level
+    OLED_Command(0x20);
+    OLED_Command(0x8D);  // Set Charge Pump
+    OLED_Command(0x14);  // Enable charge pump
+    OLED_Command(0xAF);  // Display ON
+}
+
+static void intToStr(int num, char *str)
+{
+    int i = 0;
+    if(num == 0)
+    {
+        str[i++] = '0';
+        str[i] = '\0';
+        return;
+    }
+    while(num > 0)
+    {
+        str[i++] = (num % 10) + '0';
+        num /= 10;
+    }
+    str[i] = '\0';
+
+    /* Reverse string */
+    int start = 0, end = i - 1;
+    char temp;
+    while(start < end)
+    {
+        temp = str[start];
+        str[start] = str[end];
+        str[end] = temp;
+        start++;
+        end--;
+    }
+}
+
+void OLED_DrawChar(char c)
+{
+    static const uint8_t font5x7[][5] = {
+        {0x00,0x00,0x00,0x00,0x00}, // Space
+        {0x7C,0x12,0x11,0x12,0x7C}, // A
+        {0x3E,0x41,0x41,0x41,0x22}, // C
+        {0x7F,0x49,0x49,0x49,0x41}, // E
+        {0x7F,0x08,0x08,0x08,0x08}, // L
+        {0x7F,0x02,0x04,0x02,0x7F}, // M
+        {0x7F,0x04,0x08,0x10,0x7F}, // N
+        {0x3E,0x41,0x41,0x41,0x3E}, // O
+        {0x7F,0x09,0x19,0x29,0x46}, // R
+        {0x46,0x49,0x49,0x49,0x31}, // S
+        {0x01,0x01,0x7F,0x01,0x01}, // T
+        {0x07,0x08,0x70,0x08,0x07}, // Y
+        {0x7F,0x09,0x09,0x09,0x06}  // P
+    };
+
+    uint8_t index = 0;
+    switch(c)
+    {
+        case ' ': index = 0; break;
+        case 'A': index = 1; break;
+        case 'C': index = 2; break;
+        case 'E': index = 3; break;
+        case 'L': index = 4; break;
+        case 'M': index = 5; break;
+        case 'N': index = 6; break;
+        case 'O': index = 7; break;
+        case 'R': index = 8; break;
+        case 'S': index = 9; break;
+        case 'T': index = 10; break;
+        case 'Y': index = 11; break;
+        case 'P': index = 12; break;
+        default: index = 0; break;
+    }
+
+    for(int i = 0; i < 5; i++)
+    {
+        OLED_Data(font5x7[index][i]);
+    }
+    OLED_Data(0x00); // 1 pixel gap
+}
+
+void OLED_Print(char *str)
+{
+    while(*str)
+    {
+        OLED_DrawChar(*str++);
+    }
+}
+
+void OLED_ShowStartupScreen(void)
+{
+    OLED_Clear();
+    OLED_SetCursor(1, 25);
+    OLED_Print("SMART ENTRY");
+    OLED_SetCursor(3, 35);
+    OLED_Print("MONITOR");
+    OLED_SetCursor(5, 28);
+    OLED_Print("CONTROLLER");
+
+    for(volatile uint32_t i = 0; i < 800000; i++); // 1 second delay
+    OLED_Clear();
+}
+
+void OLED_ShowCount(int count)
+{
+    char buffer[10];
+
+    /* Clear only the display area */
+    for(uint8_t page = 0; page < 6; page++) // Pages 0-5 only
+    {
+        OLED_SetCursor(page, 0);
+        for(uint8_t col = 0; col < 128; col++)
+        {
+            OLED_Data(0x00);
+        }
+    }
+
+    /* Display "PERSONS ENTERED" */
+    OLED_SetCursor(0, 20);
+    OLED_Print("PERSONS");
+
+    OLED_SetCursor(2, 25);
+    OLED_Print("ENTERED");
+
+    /* Display count - BIG FONT style */
+    intToStr(count, buffer);
+
+    /* Position count in center for 3-digit max */
+    uint8_t count_x = 55 - (strlen(buffer) * 3); // Center align
+    OLED_SetCursor(4, count_x);
+
+    /* Print each digit BIG (5x7 scaled) */
+    for(int i = 0; i < strlen(buffer); i++)
+    {
+        OLED_DrawChar(buffer[i]);
+        /* Add spacing between digits */
+        OLED_SetCursor(4, count_x + (i * 6));
+    }
+
+    /* Small delay to ensure I2C completes */
+    for(volatile uint32_t i = 0; i < 5000; i++);
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+LDR.h
+#ifndef __LDR_H
+#define __LDR_H
+#include "stm32f411xe.h"
+
+void LDR_Init(void);
+uint16_t LDR_Read(void);
+
+#endif
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+LDR.c
+#include "ldr.h"
+
+void LDR_Init(void)
+{
+    /* Enable GPIOA Clock */
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+
+    /* PA0 -> Analog Mode */
+    GPIOA->MODER |= (3U << (0 * 2));
+
+    /* Enable ADC1 Clock */
+    RCC->APB2ENR |= RCC_APB2ENR_ADC1EN;
+
+    /* Disable ADC before config */
+    ADC1->CR2 = 0;
+
+    /* 12-bit resolution */
+    ADC1->CR1 = 0;
+
+    /* Regular sequence: Channel 0 */
+    ADC1->SQR3 = 0;
+
+    /* Sampling time: 144 cycles */
+    ADC1->SMPR2 |= (5U << 0);
+
+    /* Power ON ADC */
+    ADC1->CR2 |= ADC_CR2_ADON;
+}
+
+uint16_t LDR_Read(void)
+{
+    /* Start Conversion */
+    ADC1->CR2 |= ADC_CR2_SWSTART;
+
+    /* Wait until complete */
+    while (!(ADC1->SR & ADC_SR_EOC));
+
+    /* Read result */
+    return (uint16_t)ADC1->DR;
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+main.c
+#include "stm32f411xe.h"
+#include "ldr.h"
+#include "i2c.h"
+#include "oled.h"
+
+/* ---------------- Global Variables ---------------- */
+volatile uint8_t ldr_status;
+volatile uint8_t prev_ldr_status = 1;
+int block_count = 0;
+
+/* ---------------- Delay ---------------- */
+void delay_ms(uint32_t ms)
+{
+    for(uint32_t i = 0; i < (ms * 4000); i++)
+    {
+        __NOP();
+    }
+}
+
+/* ---------------- GPIO Init ---------------- */
+void GPIO_Init(void)
+{
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
+
+    /* PA1 -> LDR Input (digital read) */
+    GPIOA->MODER &= ~(3U << (1 * 2));
+
+    /* PB0 -> Laser */
+    GPIOB->MODER &= ~(3U << (0 * 2));
+    GPIOB->MODER |=  (1U << (0 * 2));
+
+    /* PB1 -> Buzzer */
+    GPIOB->MODER &= ~(3U << (1 * 2));
+    GPIOB->MODER |=  (1U << (1 * 2));
+    GPIOB->OTYPER &= ~((1U << 0) | (1U << 1));
+}
+
+static int strlen(char *str)
+{
+    int len = 0;
+    while(*str++) len++;
+    return len;
+}
+
+/* ---------------- MAIN ---------------- */
+int main(void)
+{
+    GPIO_Init();
+    I2C1_Init();
+    LDR_Init();
+    OLED_Init();
+
+    /* Laser ON */
+    GPIOB->ODR |= (1U << 0);
+    /* Buzzer OFF */
+    GPIOB->ODR &= ~(1U << 1);
+
+    OLED_ShowStartupScreen();
+    OLED_ShowCount(0);
+
+    while(1)
+    {
+        /* Read LDR digital status (PA1) */
+        ldr_status = (GPIOA->IDR & (1U << 1)) ? 1 : 0;
+
+        if(prev_ldr_status == 1 && ldr_status == 0)
+        {
+            /* Laser blocked - person detected */
+            block_count++;
+            GPIOB->ODR |= (1U << 1);  /* Buzzer ON */
+            delay_ms(150);
+            GPIOB->ODR &= ~(1U << 1); /* Buzzer OFF */
+            OLED_ShowCount(block_count);
+        }
+        prev_ldr_status = ldr_status;
+        delay_ms(10);
+    }
+}
