@@ -1,0 +1,252 @@
+RFID.h
+
+
+
+#ifndef INC_RFID_H_
+#define INC_RFID_H_
+
+#include <stdint.h>
+
+void rfid_init(void);
+uint8_t rfid_read(uint8_t reg);
+void rfid_write(uint8_t reg, uint8_t data);
+uint8_t rfid_request(uint8_t *uid);
+
+
+
+#endif /* INC_RFID_H_ */
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SPI.h
+
+
+#ifndef INC_SPI_H_
+#define INC_SPI_H_
+
+#include "stm32f4xx.h"
+#include <stdint.h>
+
+void spi_gpio_init(void);
+void spi1_config(void);
+void spi1_transmit(uint8_t *data,uint32_t size);
+void spi1_receive(uint8_t *data,uint32_t size);
+void cs_enable(void);
+void cs_disable(void);
+
+#endif /* INC_SPI_H_ */
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SPI.c
+
+#include "SPI.h"
+
+
+#define SPI1EN			(1U<<12)
+#define GPIOAEN			(1U<<0)
+
+#define SR_TXE			(1U<<1)
+#define SR_RXNE			(1U<<0)
+
+#define SR_BSY			(1U<<7)
+
+
+//PA5 -> CLK
+//PA6 -> MISO
+//PA7 -> MOSI
+//PA9 -> Slave Select
+
+
+void spi_gpio_init(void)
+{
+	/*Enable clock access to GPIOA :: 6.3.9 RCC AHB1ENR REFERENCE MANUAL*/
+	RCC->AHB1ENR |= GPIOAEN;
+
+	/*Set PA5,PA6,PA7 mode to alternate function
+	 * ALTERANTE FUNCTION MAPPING TABLE NO:9 DATASHEET*/
+
+	/*PA5*/
+	GPIOA->MODER &=~(1U<<10);
+	GPIOA->MODER |=(1U<<11);
+
+	/*PA6*/
+	GPIOA->MODER &=~(1U<<12);
+	GPIOA->MODER |=(1U<<13);
+
+	/*PA7*/
+	GPIOA->MODER &=~(1U<<14);
+	GPIOA->MODER |=(1U<<15);
+
+
+	/*Set PA9 as output pin*/
+	GPIOA->MODER |=(1U<<18);
+	GPIOA->MODER &=~(1U<<19);
+
+	/* High speed for SPI pins */
+	GPIOA->OSPEEDR |= (3U<<10) | (3U<<12) | (3U<<14);
+
+	/* Push-pull */
+	GPIOA->OTYPER &= ~((1U<<5) | (1U<<6) | (1U<<7));
+
+	/* No pull-up/down */
+	GPIOA->PUPDR &= ~((3U<<10) | (3U<<12) | (3U<<14));
+
+	/*Set PA5,PA6,PA7 alternate function type to SPI1
+	 * 8.4.9 GPIO ALTERNATE FUNCTION REFERENCE MANUAL*/
+	/*PA5*/
+	GPIOA->AFR[0] |=(1U<<20);
+	GPIOA->AFR[0] &= ~(1U<<21);
+	GPIOA->AFR[0] |=(1U<<22);
+	GPIOA->AFR[0] &= ~(1U<<23);
+
+	/*PA6*/
+	GPIOA->AFR[0] |=(1U<<24);
+	GPIOA->AFR[0] &= ~(1U<<25);
+	GPIOA->AFR[0] |=(1U<<26);
+	GPIOA->AFR[0] &= ~(1U<<27);
+
+	/*PA7*/
+	GPIOA->AFR[0] |=(1U<<28);
+	GPIOA->AFR[0] &= ~(1U<<29);
+	GPIOA->AFR[0] |=(1U<<30);
+	GPIOA->AFR[0] &= ~(1U<<31);
+
+	cs_disable();
+
+
+}
+
+void spi1_config(void)
+{
+	/*Enable clock access to SPI1 module :: 6.3.12 RCC APB2ENR REFERENCE MANUAL*/
+	RCC->APB2ENR |= SPI1EN;
+
+	/*Set clock to fPCLK/4
+	 * DEFAULT FREQUENCY OF STM32F411 IS 16MHz
+	 * 20.5.1 SPI CONTROL REGISTER 1*/
+	SPI1->CR1 |= (1U<<3) | (1U<<5);  // fPCLK/64
+	SPI1->CR1 &= ~(1U<<4);
+
+	/*Set CPOL to 0 and CPHA to 0*/
+	SPI1->CR1 &= ~(1U<<0);
+	SPI1->CR1 &= ~(1U<<1);
+
+	/*Enable full duplex*/
+	SPI1->CR1 &=~(1U<<10);
+
+	/*Set MSB first*/
+	SPI1->CR1 &= ~(1U<<7);
+
+	/*Set mode to MASTER
+	 * MASTER --> STM32
+	 * SLAVE --> MPU6050*/
+	SPI1->CR1 |= (1U<<2);
+
+	/*Set 8 bit data mode*/
+	SPI1->CR1 &= ~(1U<<11);
+
+	/*Select software slave management by
+	 * setting SSM=1 and SSI=1*/
+	SPI1->CR1 |= (1<<8);
+	SPI1->CR1 |= (1<<9);
+
+	/*Enable SPI module*/
+	SPI1->CR1 |= (1<<6);
+
+}
+
+void spi1_transmit(uint8_t *data,uint32_t size)
+{
+	uint32_t i=0;
+	uint8_t temp;
+
+	while(i<size)
+	{
+		/*Wait until TXE is set
+		 * 20.5.3 SPI STATUS REGISTER*/
+		while(!(SPI1->SR & (SR_TXE)))
+		{
+
+		}
+
+		/*Write the data to the data register*/
+		SPI1->DR = data[i];
+		i++;
+	}
+	/*Wait until TXE is set*/
+	while(!(SPI1->SR & (SR_TXE)))
+	{
+
+	}
+
+	/*Wait for BUSY flag to reset
+	 * 20.5.3 SPI STATUS REGISTER*/
+	while((SPI1->SR & (SR_BSY))){}
+
+	/*Clear OVR flag
+	 * 20.4.8 ERROR FLAGS -> OVERRUN FLAG*/
+	temp = SPI1->DR;
+	temp = SPI1->SR;
+}
+
+void spi1_receive(uint8_t *data,uint32_t size)
+{
+	while(size)
+	{
+	    while(!(SPI1->SR & SR_TXE));
+	    *((volatile uint8_t*)&SPI1->DR) = 0x00;
+
+	    while(!(SPI1->SR & SR_RXNE));
+	    *data++ = *((volatile uint8_t*)&SPI1->DR);
+	    size--;
+	}
+}
+
+
+void cs_enable(void)
+{
+	//8.4.6 GPIO OUTPUT DATA REGISTER
+	GPIOA->ODR &=~(1U<<9);
+
+}
+
+/*Pull high to disable*/
+void cs_disable(void)
+{
+	GPIOA->ODR |=(1U<<9);
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+main.c
+
+#include "stm32f4xx.h"
+#include "SPI.h"
+#include "rfid.h"
+
+/* ===== VARIABLES FOR LIVE EXPRESSION ===== */
+volatile uint8_t uid[5] = {0};
+volatile uint8_t card_detected = 0;
+volatile uint8_t version = 0;
+
+int main(void)
+{
+    spi_gpio_init();
+    spi1_config();
+    rfid_init();
+
+    cs_disable();
+
+    while(1)
+    {
+        version = rfid_read(0x37);   // keep SPI active for debugger visibility
+
+        if(rfid_request((uint8_t*)uid))
+            card_detected = 1;
+        else
+            card_detected = 0;
+
+        // debugger-friendly delay (stable memory access)
+        for(volatile uint32_t i = 0; i < 2000000; i++);
+    }
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
